@@ -1,0 +1,38 @@
+name: Renew reklama5 ad
+
+on:
+  schedule:
+    # Секој час (06-20 UTC) на секој 2 ден од месецот. Само во "случајниот"
+    # час за тој ден (check_time.py) се врши обновата, останатите излегуваат веднаш.
+    - cron: "11 6-20 */2 * *"
+  workflow_dispatch:   # рачно стартување (секогаш обновува)
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Дали е ред на обнова?
+        id: gate
+        run: python3 check_time.py
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'true'
+        with:
+          python-version: "3.12"
+      - if: steps.gate.outputs.go == 'true'
+        run: pip install -r requirements.txt && playwright install --with-deps chromium
+      - name: Renew ad
+        if: steps.gate.outputs.go == 'true'
+        env:
+          R5_EMAIL: ${{ secrets.R5_EMAIL }}
+          R5_PASSWORD: ${{ secrets.R5_PASSWORD }}
+          R5_AD_ID: "5892482"
+        run: python renew_ad.py
+      - name: Upload debug files
+        if: always() && steps.gate.outputs.go == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug
+          path: debug/
+          if-no-files-found: ignore
